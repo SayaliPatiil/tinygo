@@ -282,6 +282,7 @@ func sendDescriptor(setup usbSetup) {
 		return
 	case usb_DEVICE_DESCRIPTOR_TYPE:
 		// composite descriptor
+		usbDescriptor.Configure(usb_VID, usb_PID)
 		sendUSBPacket(0, usbDescriptor.Device, setup.wLength)
 		return
 

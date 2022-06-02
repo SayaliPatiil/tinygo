@@ -9,6 +9,13 @@ type USBDescriptor struct {
 	HID           map[uint16][]byte
 }
 
+func (d *USBDescriptor) Configure(idVendor, idProduct uint16) {
+	d.Device[8] = byte(idVendor)
+	d.Device[9] = byte(idVendor >> 8)
+	d.Device[10] = byte(idProduct)
+	d.Device[11] = byte(idProduct >> 8)
+}
+
 var descriptorCDC = USBDescriptor{
 	Device: []byte{
 		0x12, 0x01, 0x00, 0x02, 0xef, 0x02, 0x01, 0x40, 0x86, 0x28, 0x2d, 0x80, 0x00, 0x01, 0x01, 0x02, 0x03, 0x01,
