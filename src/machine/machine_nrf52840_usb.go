@@ -121,8 +121,9 @@ func (usbcdc *USBCDC) RTS() bool {
 }
 
 var (
-	USB  = &_USB
-	_USB = USBCDC{Buffer: NewRingBuffer()}
+	USB        = &_USB
+	_USB       = USBCDC{Buffer: NewRingBuffer()}
+	waitHidTxc bool
 
 	usbEndpointDescriptors [8]usbDeviceDescriptor
 
@@ -201,6 +202,9 @@ func (usbcdc *USBCDC) handleInterrupt(interrupt.Interrupt) {
 	if nrf.USBD.EVENTS_SOF.Get() == 1 {
 		nrf.USBD.EVENTS_SOF.Set(0)
 		usbcdc.Flush()
+		if hidCallback != nil && !waitHidTxc {
+			hidCallback()
+		}
 		// if you want to blink LED showing traffic, this would be the place...
 	}
 
@@ -262,6 +266,9 @@ func (usbcdc *USBCDC) handleInterrupt(interrupt.Interrupt) {
 		} else {
 			if setup.wIndex == usb_CDC_ACM_INTERFACE {
 				ok = cdcSetup(setup)
+			} else if setup.bmRequestType == usb_SET_REPORT_TYPE && setup.bRequest == usb_SET_IDLE {
+				sendZlp()
+				ok = true
 			}
 		}
 
@@ -297,6 +304,8 @@ func (usbcdc *USBCDC) handleInterrupt(interrupt.Interrupt) {
 						usbcdc.waitTxc = false
 						exitCriticalSection()
 					}
+				case usb_HID_ENDPOINT_IN:
+					waitHidTxc = false
 				}
 			}
 		}
@@ -422,6 +431,11 @@ func handleStandardSetup(setup usbSetup) bool {
 				initEndpoint(uint32(i), endPoints[i])
 			}
 
+			// Enable interrupt for HID messages from host
+			if hidCallback != nil {
+				nrf.USBD.INTENSET.Set(nrf.USBD_INTENSET_ENDEPOUT0 << usb_HID_ENDPOINT_IN)
+			}
+
 			usbConfiguration = setup.wValueL
 			return true
 		} else {
@@ -480,6 +494,22 @@ func cdcSetup(setup usbSetup) bool {
 		return true
 	}
 	return false
+}
+
+// SendUSBHIDPacket sends a packet for USBHID (interrupt / in).
+func SendUSBHIDPacket(ep uint32, data []byte) bool {
+	if waitHidTxc {
+		return false
+	}
+
+	sendUSBPacket(ep, data, 0)
+
+	// clear transfer complete flag
+	nrf.USBD.INTENCLR.Set(nrf.USBD_INTENCLR_ENDEPOUT0 << 4)
+
+	waitHidTxc = true
+
+	return true
 }
 
 //go:noinline
