@@ -104,7 +104,7 @@ func GetCachedGoroot(config *compileopts.Config) (string, error) {
 		sort.Strings(dirs)
 
 		for _, dir := range dirs {
-			err := os.Mkdir(dir, 0777)
+			err := os.Mkdir(dir, 0750)
 			if err != nil {
 				return "", err
 			}
